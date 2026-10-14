@@ -9,10 +9,6 @@ actionable reports.
 The project prioritizes correctness, reproducibility, traceability, and
 maintainability over the number of checks performed.
 
-> **Development status:** Early development. Only the capabilities listed
-> under [Implemented to date](#implemented-to-date) are implemented and
-> verified by code and tests. Everything else described below is planned.
-
 ## Project Goals
 
 - Detect supported code quality and maintainability issues.
@@ -123,6 +119,24 @@ Read the project specifications before implementing new functionality.
 
 Development tools are defined as optional dependencies in `pyproject.toml`.
 
+## Installation
+
+Requires Python 3.12 or newer.
+
+Install from a local checkout:
+
+```bash
+python -m pip install .
+```
+
+For development and testing:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+The package currently has no declared runtime dependencies.
+
 ## Usage
 
 ```bash
@@ -155,6 +169,7 @@ Verified in code and tests; see `docs/rules.md` section 16 for the contracts.
   execution-result model (`AnalyzerResult` with
   success / partial / failed / not_run), and repository identity
   (representation and validation only).
+
 - **Stage 2 — Persistent SQLite storage and migrations**
   (`src/repo_health/storage/`): versioned memory schema with idempotent,
   forward-only migrations over standard-library `sqlite3`; persists
@@ -167,53 +182,51 @@ Verified in code and tests; see `docs/rules.md` section 16 for the contracts.
   `src/repo_health/config.py`): deterministic glob engine, validated
   discovery configuration, repository-root resolution, read-only file
   enumeration with skip accounting, and extension-based language detection.
+
 - **Stage 4 — Analysis engine and analyzers** (`src/repo_health/core/`,
   `src/repo_health/analyzers/`): explicit run context, deterministic
   engine with failure isolation, registry of the eight documented
   analyzers, and one documented check per analyzer
   (see `docs/rules.md` section 16.7).
+
 - **Stage 5 — Command-line interface** (`src/repo_health/cli.py`):
   `analyze`, `db`, `history`, `regressions`, `context`, and `report`
   commands over stdlib `argparse`, with documented
   exit codes (0 success, 1 failure, 2 usage error).
+
 - **Stage 6 — Historical comparison** (`src/repo_health/intelligence/`):
   lifecycle classification (new, recurring, resolved, reappeared,
   indeterminate) over persisted runs
   (see `docs/rules.md` sections 16.8 and 16.9).
+
 - **Stage 7 — Agent context export** (`src/repo_health/context/`):
   bounded, vendor-neutral context packages with derived lifecycle
   and honest truncation counts.
+
 - **Stage 8 — Reports** (`src/repo_health/reports/`): shared report
   model with JSON (`repo-health-report/v1`), Markdown, and summary
   rendering (see `docs/output-format.md`).
 
 ## Planned (not implemented)
 
-The following are not implemented. The corresponding modules exist only as
-empty placeholders; a directory or empty module does not establish that a
-capability works.
+The following capabilities are not implemented. A directory or empty module
+does not establish that a capability works.
 
 - Finding queries, scoring, correlation, hotspots, impact analysis,
   and vendor-specific integrations.
 
 ## Development Status
 
-Repo Health is in early development. Documentation and engineering contracts
-are being established before implementation.
+Stages 1–8 listed under [Implemented to date](#implemented-to-date) are
+implemented and covered by automated tests. The current scope includes
+repository discovery, analysis, persistence, historical comparison, agent
+context export, and JSON, Markdown, and summary reports.
 
-The next phases are:
+Repo Health remains in early development. The capabilities listed under
+[Planned (not implemented)](#planned-not-implemented) are not implemented.
 
-1. Review the architecture and behavioral specifications.
-2. Verify compatibility requirements against existing project artifacts.
-   (Note: the legacy schema v3 definition is currently unavailable, so no
-   schema-v3 compatibility is claimed; see `docs/rules.md` section 16.4.)
-3. Define data models and component interfaces. (Stage 1 and Stage 2 complete;
-   see [Implemented to date](#implemented-to-date).)
-4. Implement the core and analyzers incrementally.
-5. Add tests and verify behavior.
-6. Implement reporting and user-facing workflows.
-
-A directory or empty module does not establish that a capability works.
+Before using Repo Health for important engineering decisions, review its
+documented limitations and validate findings against the target repository.
 
 ## Development Workflow
 
