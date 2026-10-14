@@ -1,102 +1,8 @@
 # Repo Health
 
-**A deterministic, evidence-driven repository health analyzer.**
+*Repository Health*
 
-Repo Health is designed to inspect software repositories, identify potential
-issues, evaluate repository evidence, compare observations, and generate
-actionable reports.
-
-The project prioritizes correctness, reproducibility, traceability, and
-maintainability over the number of checks performed.
-
-## Project Goals
-
-- Detect supported code quality and maintainability issues.
-- Inspect Git metadata and repository structure.
-- Analyze dependency manifests and configuration files.
-- Identify supported security issues, including potential secrets.
-- Evaluate documentation and architectural constraints.
-- Compare repository observations using explicit evidence.
-- Generate human-readable and machine-readable reports.
-- Help developers understand findings and decide what to address.
-
-## Core Principles
-
-### Deterministic Analysis
-
-Equivalent repository evidence and configuration should produce equivalent
-substantive results.
-
-### Evidence-Based Findings
-
-Every finding must be supported by evidence. Unknown information must not be
-treated as false, and unavailable evidence must not be treated as a successful
-check.
-
-### Read-Only by Default
-
-Analysis must not modify the target repository, automatically fix files,
-or execute arbitrary project scripts by default.
-
-### Explicit Uncertainty
-
-The system must distinguish successful analysis, partial analysis, failed
-analysis, and checks that were not performed.
-
-### Minimal Dependencies
-
-Prefer the Python standard library where practical. External dependencies
-must have a clear justification.
-
-### Testability
-
-Behavior must be verified through automated tests. A documented capability
-is not considered implemented until its behavior is verified.
-
-## Planned Architecture
-
-The intended architecture separates repository discovery, analysis,
-evidence comparison, data models, and reporting.
-
-```text
-Repository
-    |
-    v
-Discovery
-    |
-    v
-Analysis Engine
-    |
-    +--> Git Analyzer
-    +--> Code Analyzer
-    +--> Test Analyzer
-    +--> Dependency Analyzer
-    +--> Security Analyzer
-    +--> Documentation Analyzer
-    +--> Architecture Analyzer
-    +--> Configuration Analyzer
-    |
-    v
-Finding Collection
-    |
-    v
-Report Generation
-    |
-    +--> Markdown
-    +--> JSON
-```
-
-Historical comparison is a separate logical capability requiring explicit
-observation and evidence contracts.
-
-This diagram describes the intended design, not implemented functionality.
-
-## Project Structure
-
-See the repository tree for the current layout. The intended Python package
-uses a `src/repo_health/` structure with separate modules for analyzers,
-core services, discovery, intelligence, integrations, models, reports, and
-utilities.
+Repo Health helps developers identify potential issues in **code, dependencies, and security**. It analyzes your repository to highlight areas that may need attention. It examines project structure, tests, documentation, and configuration. Track findings and compare analysis results over time. Detect new and reappearing issues as your project evolves. Generate reports and export useful context for AI coding agents.
 
 ## Documentation
 
@@ -109,33 +15,46 @@ Read the project specifications before implementing new functionality.
 | [Analysis Rules](docs/rules.md) | Evidence semantics and finding lifecycle |
 | [Configuration](docs/configuration.md) | Intended configuration contract |
 
-## Technology
+## Why Repo Health?
 
-- **Language:** Python 3.12 or newer
-- **Package layout:** `src/`-based Python package
-- **Testing:** pytest
-- **Code quality:** Ruff and mypy
-- **Runtime dependencies:** None currently declared
+Repo Health helps developers understand repository health, track findings over time, and provide structured context to AI coding agents.
 
-Development tools are defined as optional dependencies in `pyproject.toml`.
+| Feature | What it does | Why it matters |
+|---|---|---|
+| **Repository Analysis** | Examines Git, code, tests, dependencies, security, documentation, architecture, and configuration. | Identifies potential problems across a repository. |
+| **Health Reports** | Generates Markdown, JSON, and summary reports. | Makes findings easier to review and share. |
+| **History Tracking** | Stores repository observations in a local database. | Enables comparisons across analysis runs. |
+| **Regression Detection** | Identifies new and reappeared findings compared with a baseline. | Helps detect potential regressions as a project evolves. |
+| **AI Context Export** | Exports bounded, vendor-neutral context for AI agents. | Gives coding agents structured information about a repository. |
+| **Persistent Memory** | Retains repository observations between runs. | Supports ongoing monitoring and maintenance. |
 
 ## Installation
 
-Requires Python 3.12 or newer.
+Clone the repository and navigate to its directory.
 
-Install from a local checkout:
+```bash
+git clone https://github.com/tejenderlib/repo-health.git
+cd repo-health
+```
+
+Create and activate a virtual environment.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Install Repo Health.
 
 ```bash
 python -m pip install .
 ```
 
-For development and testing:
+Verify the installation.
 
 ```bash
-python -m pip install -e ".[dev]"
+repo-health --help
 ```
-
-The package currently has no declared runtime dependencies.
 
 ## Usage
 
@@ -153,81 +72,6 @@ repo-health report --repo /path/to/repo --run 2 --baseline 1 --format json
 repo-health report --repo /path/to/repo --format summary --output report.md
 ```
 
-`analyze` runs the engine and persists the observation to the memory
-database (`REPO_HEALTH_DB` or `~/.local/share/repo-health/memory.db`
-unless `--db-path` is given). Exit codes: `0` success (partial results
-included), `1` analysis or operational failure, `2` usage or
-configuration error. Every command supports `--help`.
-
-## Implemented to date
-
-Verified in code and tests; see `docs/rules.md` section 16 for the contracts.
-
-- **Stage 1 — Core models and evidence contracts** (`src/repo_health/models/`):
-  evidence states (`EvidenceState`: known / unknown / unavailable),
-  stable finding identity algorithm v1 (`rh-finding-id-v1`), analyzer
-  execution-result model (`AnalyzerResult` with
-  success / partial / failed / not_run), and repository identity
-  (representation and validation only).
-
-- **Stage 2 — Persistent SQLite storage and migrations**
-  (`src/repo_health/storage/`): versioned memory schema with idempotent,
-  forward-only migrations over standard-library `sqlite3`; persists
-  repositories, analysis runs, analyzer results, canonical findings keyed by
-  `(repository_id, finding_id)`, and per-run observations with database-level
-  integrity checks. No legacy schema-v3 compatibility is claimed
-  (see `docs/rules.md` section 16.4).
-
-- **Stage 3 — Repository and file discovery** (`src/repo_health/discovery/`,
-  `src/repo_health/config.py`): deterministic glob engine, validated
-  discovery configuration, repository-root resolution, read-only file
-  enumeration with skip accounting, and extension-based language detection.
-
-- **Stage 4 — Analysis engine and analyzers** (`src/repo_health/core/`,
-  `src/repo_health/analyzers/`): explicit run context, deterministic
-  engine with failure isolation, registry of the eight documented
-  analyzers, and one documented check per analyzer
-  (see `docs/rules.md` section 16.7).
-
-- **Stage 5 — Command-line interface** (`src/repo_health/cli.py`):
-  `analyze`, `db`, `history`, `regressions`, `context`, and `report`
-  commands over stdlib `argparse`, with documented
-  exit codes (0 success, 1 failure, 2 usage error).
-
-- **Stage 6 — Historical comparison** (`src/repo_health/intelligence/`):
-  lifecycle classification (new, recurring, resolved, reappeared,
-  indeterminate) over persisted runs
-  (see `docs/rules.md` sections 16.8 and 16.9).
-
-- **Stage 7 — Agent context export** (`src/repo_health/context/`):
-  bounded, vendor-neutral context packages with derived lifecycle
-  and honest truncation counts.
-
-- **Stage 8 — Reports** (`src/repo_health/reports/`): shared report
-  model with JSON (`repo-health-report/v1`), Markdown, and summary
-  rendering (see `docs/output-format.md`).
-
-## Planned (not implemented)
-
-The following capabilities are not implemented. A directory or empty module
-does not establish that a capability works.
-
-- Finding queries, scoring, correlation, hotspots, impact analysis,
-  and vendor-specific integrations.
-
-## Development Status
-
-Stages 1–8 listed under [Implemented to date](#implemented-to-date) are
-implemented and covered by automated tests. The current scope includes
-repository discovery, analysis, persistence, historical comparison, agent
-context export, and JSON, Markdown, and summary reports.
-
-Repo Health remains in early development. The capabilities listed under
-[Planned (not implemented)](#planned-not-implemented) are not implemented.
-
-Before using Repo Health for important engineering decisions, review its
-documented limitations and validate findings against the target repository.
-
 ## Development Workflow
 
 1. Read the relevant documentation.
@@ -244,9 +88,7 @@ Never claim a test passed unless it was executed successfully.
 
 Repo Health supports engineering review; it does not replace it.
 
-A clean report does not prove that a repository is free of defects or security
-vulnerabilities. Findings are limited by the checks performed, available
-evidence, configured exclusions, and supported languages.
+A clean report does not prove that a repository is free of defects or security vulnerabilities. Findings are limited by the checks performed, available evidence, configured exclusions, and supported languages.
 
 Repository content must be treated as untrusted input.
 
