@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+from pathlib import Path
 
 from repo_health import __version__
 from repo_health.analyzers import analyzer_names
@@ -44,6 +45,9 @@ from repo_health.intelligence.regression import compare_runs, compare_to_previou
 from repo_health.models import RunStatus, Severity
 from repo_health.models.analyzer_result import AnalyzerResult, AnalyzerStatus
 from repo_health.models.lifecycle import Lifecycle
+from repo_health.reports.json_report import build_report, report_to_json
+from repo_health.reports.markdown import render_markdown
+from repo_health.reports.summary import render_summary
 from repo_health.storage import (
     connect,
     connect_readonly,
@@ -216,6 +220,44 @@ def build_parser() -> argparse.ArgumentParser:
     )
     context_parser.add_argument("--db-path", default=None, help="database path")
     context_parser.set_defaults(func=_cmd_context)
+
+    report_parser = subparsers.add_parser(
+        "report",
+        help="render a report for a stored run",
+        description="Build the shared report for a run and render it as "
+        "Markdown, JSON, or summary. Read-only; prints to stdout unless "
+        "--output names a file.",
+    )
+    report_parser.add_argument(
+        "--repo",
+        default=".",
+        help="repository path to inspect (default: .)",
+    )
+    report_parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="run id to report (default: latest run)",
+    )
+    report_parser.add_argument(
+        "--baseline",
+        type=int,
+        default=None,
+        help="baseline run id (default: previous run)",
+    )
+    report_parser.add_argument(
+        "--format",
+        choices=("markdown", "json", "summary"),
+        default="markdown",
+        help="output format (default: markdown)",
+    )
+    report_parser.add_argument(
+        "--output",
+        default=None,
+        help="write the report to this file instead of stdout",
+    )
+    report_parser.add_argument("--db-path", default=None, help="database path")
+    report_parser.set_defaults(func=_cmd_report)
     return parser
 
 
@@ -432,6 +474,42 @@ def _cmd_context(args: argparse.Namespace) -> int:
                 return EXIT_OK
             run_id = ids[-1]
         print(package_to_json(build_package(conn, key, run_id, bounds)))
+        return EXIT_OK
+
+
+def _cmd_report(args: argparse.Namespace) -> int:
+    with connect_readonly(resolve_db_path(args.db_path)) as conn:
+        resolved = resolve_target(str(args.repo))
+        key = resolved.root.key()
+        if get_repository(conn, key) is None:
+            raise ValidationError(f"no history for {args.repo!r}: run analyze first")
+        repo_id = get_repository_id(conn, key)
+        if repo_id is None:  # pragma: no cover - defensive; row was just read
+            raise DatabaseError(f"repository {key!r} vanished")
+        run_ids = [run.id for run in list_runs(conn, repo_id) if run.id is not None]
+        if not run_ids:
+            print(f"repo: {args.repo}\nno runs")
+            return EXIT_OK
+        current, baseline = _select_runs(run_ids, args.run, args.baseline)
+        report = build_report(conn, key, current, baseline)
+        if args.format == "json":
+            text = report_to_json(report)
+        elif args.format == "summary":
+            text = render_summary(report)
+        else:
+            text = render_markdown(report)
+        if not text.endswith("\n"):
+            text += "\n"
+        if args.output is None:
+            print(text, end="")
+            return EXIT_OK
+        output = Path(args.output).expanduser()
+        try:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(text, encoding="utf-8")
+        except OSError as exc:
+            print(f"repo-health: error: cannot write {output}: {exc}", file=sys.stderr)
+            return EXIT_FAILURE
         return EXIT_OK
 
 
