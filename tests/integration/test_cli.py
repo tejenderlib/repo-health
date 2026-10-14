@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -321,3 +322,44 @@ def test_regressions_empty_and_read_only(
     assert main(["regressions", "--repo", str(root), "--run", "2"]) == 0
     capsys.readouterr()
     assert (db_path.stat().st_mtime_ns, db_path.read_bytes()) == before
+
+
+def test_context_help_unknown_and_empty(
+    tmp_path: Path, monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    assert main(["context", "--help"]) == 0
+    db_path = use_db(tmp_path, monkeypatch)
+    root = build_repo(tmp_path / "repo")
+    assert main(["db", "init"]) == 0
+    capsys.readouterr()
+    assert main(["context", "--repo", str(root)]) == 2
+    assert "no history" in capsys.readouterr().err
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    assert main(["context", "--repo", str(root)]) == 0
+    package = json.loads(capsys.readouterr().out)
+    assert package["schema"] == "repo-health-context/v1"
+    assert package["repository"]["key"] == str(root)
+    assert package["run"]["id"] == 1
+    assert package["truncated"] == {"findings_omitted": 0, "evidence_chars_omitted": 0}
+    before = (db_path.stat().st_mtime_ns, db_path.read_bytes())
+    assert main(["context", "--repo", str(root), "--run", "1"]) == 0
+    capsys.readouterr()
+    assert (db_path.stat().st_mtime_ns, db_path.read_bytes()) == before
+
+
+def test_context_limits_and_invalid(
+    tmp_path: Path, monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    use_db(tmp_path, monkeypatch)
+    root = build_repo(tmp_path / "repo")
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    assert main(["context", "--repo", str(root), "--max-findings", "1"]) == 0
+    package = json.loads(capsys.readouterr().out)
+    assert len(package["findings"]) == 1
+    assert package["truncated"]["findings_omitted"] == 1
+    assert main(["context", "--repo", str(root), "--run", "99"]) == 2
+    assert main(["context", "--repo", str(root), "--max-findings", "0"]) == 2
+    assert main(["context", "--repo", str(root), "--max-evidence-chars", "-5"]) == 2
+    assert main(["context", "--repo", str(root), "--max-findings", "abc"]) == 2

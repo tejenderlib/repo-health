@@ -332,6 +332,19 @@ stable Stage 1 finding id. Observations additionally carry a composite
 foreign key against their run's repository, so run/repository mismatches
 are rejected by the database itself. See `docs/rules.md` section 16.6.
 
+### 4.12 Context — `context/`
+
+Assembles vendor-neutral, read-only context packages from persisted
+evidence (standard library only; no LLM, network, or target access).
+
+- `bounds.py`: validated export limits and word-boundary text truncation
+  with honest omission counts.
+- `package.py`: deterministic package assembly over stored runs, with
+  lifecycle derived at export time and provenance recorded.
+
+The `context` CLI command prints the package as JSON transport, not a
+report. Vendor-specific `integrations/` stubs remain unimplemented.
+
 ## 5. Dependency Direction
 
 The intended dependency direction is:

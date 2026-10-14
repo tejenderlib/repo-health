@@ -133,6 +133,7 @@ repo-health db info
 repo-health history --repo /path/to/repo
 repo-health history --repo /path/to/repo --run 2 --baseline 1
 repo-health regressions --repo /path/to/repo
+repo-health context --repo /path/to/repo --max-findings 10
 ```
 
 `analyze` runs the engine and persists the observation to the memory

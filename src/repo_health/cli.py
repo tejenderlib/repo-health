@@ -4,9 +4,10 @@ Subcommands: ``analyze`` runs the analysis engine and persists the
 observation; ``db init`` creates the memory database; ``db info`` reports
 read-only database statistics; ``history`` shows runs and per-finding
 lifecycle against a baseline; ``regressions`` reports new and reappeared
-findings. Query commands exit 0 whenever the query succeeds, even when
-regressions are found: their output is a report, not a verdict. Findings
-queries and integrations arrive with later stages.
+findings; ``context`` exports a bounded vendor-neutral context package as
+JSON transport (not a report). Findings queries arrive with a later stage.
+Query commands exit 0 whenever the query succeeds, even when regressions
+are found: their output is a report, not a verdict.
 
 Exit codes:
 
@@ -30,8 +31,14 @@ import sys
 
 from repo_health import __version__
 from repo_health.analyzers import analyzer_names
+from repo_health.context import ContextBounds, build_package, package_to_json
+from repo_health.context.bounds import DEFAULT_MAX_EVIDENCE_CHARS, DEFAULT_MAX_FINDINGS
 from repo_health.core.engine import analyze as run_analysis
-from repo_health.core.exceptions import RepoHealthError, ValidationError
+from repo_health.core.exceptions import (
+    DatabaseError,
+    RepoHealthError,
+    ValidationError,
+)
 from repo_health.discovery.repository import resolve_target
 from repo_health.intelligence.regression import compare_runs, compare_to_previous
 from repo_health.models import RunStatus, Severity
@@ -41,6 +48,7 @@ from repo_health.storage import (
     connect,
     connect_readonly,
     create_run,
+    get_repository,
     get_repository_id,
     get_stats,
     init_db,
@@ -176,6 +184,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     regressions_parser.add_argument("--db-path", default=None, help="database path")
     regressions_parser.set_defaults(func=_cmd_regressions)
+
+    context_parser = subparsers.add_parser(
+        "context",
+        help="export a bounded vendor-neutral context package",
+        description="Assemble repository health context for one stored run "
+        "from persisted evidence only. Read-only; prints JSON transport.",
+    )
+    context_parser.add_argument(
+        "--repo",
+        default=".",
+        help="repository path to inspect (default: .)",
+    )
+    context_parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="run id to export (default: latest run)",
+    )
+    context_parser.add_argument(
+        "--max-findings",
+        type=int,
+        default=DEFAULT_MAX_FINDINGS,
+        help="maximum findings included (default: 50)",
+    )
+    context_parser.add_argument(
+        "--max-evidence-chars",
+        type=int,
+        default=DEFAULT_MAX_EVIDENCE_CHARS,
+        help="maximum chars per evidence/description field (default: 200)",
+    )
+    context_parser.add_argument("--db-path", default=None, help="database path")
+    context_parser.set_defaults(func=_cmd_context)
     return parser
 
 
@@ -368,6 +408,30 @@ def _cmd_regressions(args: argparse.Namespace) -> int:
                 f"{item.lifecycle.value}: {item.reason}"
             )
         print("\n".join(lines))
+        return EXIT_OK
+
+
+def _cmd_context(args: argparse.Namespace) -> int:
+    bounds = ContextBounds(
+        max_findings=args.max_findings,
+        max_evidence_chars=args.max_evidence_chars,
+    )
+    with connect_readonly(resolve_db_path(args.db_path)) as conn:
+        resolved = resolve_target(str(args.repo))
+        key = resolved.root.key()
+        if get_repository(conn, key) is None:
+            raise ValidationError(f"no history for {args.repo!r}: run analyze first")
+        repo_id = get_repository_id(conn, key)
+        if repo_id is None:  # pragma: no cover - defensive; row was just read
+            raise DatabaseError(f"repository {key!r} vanished")
+        run_id = args.run
+        if run_id is None:
+            ids = [run.id for run in list_runs(conn, repo_id) if run.id is not None]
+            if not ids:
+                print(f"repo: {args.repo}\nno runs")
+                return EXIT_OK
+            run_id = ids[-1]
+        print(package_to_json(build_package(conn, key, run_id, bounds)))
         return EXIT_OK
 
 
