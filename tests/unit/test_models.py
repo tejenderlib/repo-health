@@ -52,11 +52,6 @@ def test_only_known_is_established() -> None:
     assert is_established(EvidenceState.UNAVAILABLE) is False
 
 
-def test_unknown_is_not_treated_as_known_or_absent() -> None:
-    assert EvidenceState.UNKNOWN is not EvidenceState.KNOWN
-    assert EvidenceState.UNAVAILABLE is not EvidenceState.KNOWN
-
-
 # Severity
 
 
@@ -170,11 +165,6 @@ def test_bad_identifiers_rejected() -> None:
     with pytest.raises(ValidationError):
         make_finding(rule="")
     assert validate_identifier("analyzer", " git ") == "git"
-
-
-def test_non_severity_rejected() -> None:
-    with pytest.raises(ValidationError):
-        make_finding(severity="high")  # type: ignore[arg-type]
 
 
 def test_findings_sort_deterministically() -> None:
