@@ -13,3 +13,7 @@ class RepoHealthError(Exception):
 
 class ValidationError(RepoHealthError, ValueError):
     """Raised when a model invariant or input contract is violated."""
+
+
+class DatabaseError(RepoHealthError):
+    """Raised when Repo Health's own database cannot be used as expected."""

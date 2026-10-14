@@ -250,7 +250,9 @@ The next phases are:
    schema-v3 compatibility is claimed; see `docs/rules.md` section 16.4.)
 3. Define data models and component interfaces.
    (Stage 1 complete: evidence states, finding identity v1, analyzer
-   execution-result model, and repository identity in `src/repo_health/models/`.)
+   execution-result model, and repository identity in `src/repo_health/models/`.
+   Stage 2 complete: SQLite memory schema v1 with idempotent migrations in
+   `src/repo_health/storage/`; no schema-v3 compatibility claimed.)
 4. Implement the core and analyzers incrementally.
 5. Add tests and verify behavior.
 6. Implement reporting and user-facing workflows.

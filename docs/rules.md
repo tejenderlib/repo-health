@@ -390,7 +390,63 @@ no findings. Findings are stored sorted by id for deterministic output.
 
 The previously established schema v3 definition and its fixtures are
 currently unavailable. Therefore **no schema-v3 compatibility is claimed**
-by this implementation. Persisted formats will be defined as a new memory
-schema in Stage 2, and this limitation must be revisited when the v3
-definition becomes available. No finding, report, or database format may
+by this implementation. Persisted formats are defined as a new memory
+schema (see section 16.5), and this limitation must be revisited when the
+v3 definition becomes available. No finding, report, or database format may
 be described as schema-v3 compatible until that happens.
+
+### 16.5 Memory schema v3 (Stage 2, implemented)
+
+Persistent memory uses standard-library `sqlite3` at
+`~/.local/share/repo-health/memory.db` by default (explicit path, then
+`REPO_HEALTH_DB`, then the default). The schema versions itself
+independently as memory schema v3 via a `migrations` table plus the
+`user_version` pragma; creation and migration are idempotent. (This
+"memory schema" versioning is unrelated to the unavailable legacy
+schema v3: no legacy-schema-v3 compatibility is claimed.)
+
+Tables: `repositories` (identity per Stage 1 repository key),
+`analysis_runs` (one engine execution, with a unique
+`(repository_id, id)` index), `analyzer_results` (status plus
+checks, uncovered checks, unavailable evidence, and errors as sorted JSON
+arrays), `findings` (canonical finding fields keyed by the composite
+`(repository_id, finding_id)`; see section 16.6), and `observations`
+(`run_id`, `repository_id`, `finding_id`, analyzer, evidence state).
+
+Integrity beyond single-table keys is enforced by the database itself:
+`observations` carries composite foreign keys to both `findings` and
+`analysis_runs`, so an observation whose `repository_id` disagrees with
+its run's repository is rejected by SQLite. A v1 database with
+inconsistent rows would fail migration loudly rather than silently.
+
+The findings table stores finding descriptions and short evidence
+summaries only. Entire source files are never stored, and secret values
+must never be stored; redaction remains the analyzers' responsibility
+(section 10). Cross-checkout repository matching is deferred: the v2
+repository key is still the normalized absolute root. Timestamps are UTC
+ISO-8601 metadata and never affect finding identity. Each migration runs
+in its own transaction and rolls back fully on failure (no partial schema
+or migration records remain).
+
+### 16.6 Cross-repository finding isolation (implemented in schema v2,
+enforced in schema v3)
+
+Determination: Stage 1 finding ids are intentionally repository-independent
+(stable across checkouts, which history comparison needs), so the same
+finding content in two different repositories yields the same stable id.
+Under memory schema v1 the `findings` table was keyed by that id alone,
+so identical findings in different repositories shared one canonical row.
+That defect is fixed: since schema v2, canonical findings are keyed by
+the composite `(repository_id, finding_id)`, and `observations` carries
+`repository_id` with a composite foreign key to it. Schema v3 additionally
+constrains `observations` against `analysis_runs`, so a mismatch between
+an observation's repository and its run's repository is rejected by the
+database. The Stage 1 identity algorithm is unchanged. Per-run
+observations (history) were and remain keyed by run.
+
+Migration v1 to v2 splits any previously shared canonical row into one
+row per observing repository, recovering per-repository `first_seen` and
+`last_seen` from that repository's observation timestamps. Canonical
+detail text already conflated across repositories cannot be unmixed and
+is carried into each split row as-is; this is recorded here rather than
+hidden. A passing regression test locks the isolated behavior.

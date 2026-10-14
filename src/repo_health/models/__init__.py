@@ -11,14 +11,19 @@ from repo_health.models.finding import (
     compute_finding_id,
     validate_identifier,
 )
+from repo_health.models.observation import Observation
 from repo_health.models.repository import Repository
+from repo_health.models.run import AnalysisRun, RunStatus
 
 __all__ = [
+    "AnalysisRun",
     "AnalyzerResult",
     "AnalyzerStatus",
     "EvidenceState",
     "Finding",
+    "Observation",
     "Repository",
+    "RunStatus",
     "Severity",
     "canonicalize_repo_path",
     "compute_finding_id",

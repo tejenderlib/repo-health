@@ -286,6 +286,31 @@ Provides consistent application logging.
 Utilities must remain focused and must not become a second application
 orchestration layer.
 
+### 4.11 Storage — `storage/`
+
+Persists engineering memory in SQLite (standard library only).
+
+- `paths.py`: resolves the database location (explicit argument, then
+  `REPO_HEALTH_DB`, then `~/.local/share/repo-health/memory.db`).
+- `schema.py`: the versioned memory schema and forward-only migrations.
+  The current version is memory schema v1, which makes no schema-v3
+  compatibility claim (see `docs/rules.md` section 16).
+- `db.py`: connections and idempotent initialization. Only Repo Health's
+  own database file may be created or modified.
+- `records.py`: persistence of repositories, analysis runs, analyzer
+  execution results (including unavailable-evidence records), canonical
+  findings, and per-run observations.
+
+Storage must never read or write target repositories, never store entire
+source files, and never become an analysis or presentation layer.
+
+Canonical finding rows are scoped per repository via the composite
+`(repository_id, finding_id)` key, so identical findings in different
+repositories keep independent details and timestamps while sharing the
+stable Stage 1 finding id. Observations additionally carry a composite
+foreign key against their run's repository, so run/repository mismatches
+are rejected by the database itself. See `docs/rules.md` section 16.6.
+
 ## 5. Dependency Direction
 
 The intended dependency direction is:
