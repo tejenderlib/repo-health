@@ -450,3 +450,77 @@ row per observing repository, recovering per-repository `first_seen` and
 detail text already conflated across repositories cannot be unmixed and
 is carried into each split row as-is; this is recorded here rather than
 hidden. A passing regression test locks the isolated behavior.
+
+### 16.7 Analysis engine and analyzer checks v1 (Stage 4, implemented)
+
+The engine (`core/engine.py`) runs discovery once, then invokes each
+selected analyzer independently against an explicit `AnalysisContext`
+(target, discovery result, configuration). Analyzers run in the requested
+order (registry order by default); an analyzer that raises, returns a
+non-result, or returns another analyzer's result becomes a FAILED result
+with preserved failure information. Target and configuration errors raise
+`ValidationError` before any analyzer runs.
+
+Analyzer checks v1 (one documented check each; criteria in each module):
+
+- `git` (`git-presence`): INFO presence observation, or PARTIAL when the
+  target is not a Git repository. No history parsing, no subprocess.
+  Discovery file skips cannot affect this check.
+- `security` (`secret-pattern-scan`): HIGH for cloud access keys and
+  private key blocks, MEDIUM for secret-assignment hints. Findings never
+  reproduce secret values. Undecodable/unreadable files → PARTIAL.
+- `dependencies` (`manifest-presence`), `tests` (`test-file-presence`),
+  `documentation` (`readme-presence`), `configuration`
+  (`config-file-presence`): INFO presence observations; absence yields
+  SUCCESS with zero findings.
+- `code` (`trailing-whitespace-scan`): LOW findings per offending line in
+  Python files; undecodable/unreadable files → PARTIAL.
+- `architecture` (`architecture-constraints`): SUCCESS with zero findings
+  — no constraints are configured in v1, and none are invented.
+
+Coverage gaps (Stage 4 fix): file-consuming analyzers (`tests`,
+`dependencies`, `documentation`, `configuration`, `code`, `security`)
+inspect `discovery.skipped` via the shared `coverage_gaps` rule. Excluded
+paths never count (explicitly out of coverage); oversized and binary
+skips count only when the known path matches the check's file criteria;
+all other skips (unreadable, symlinks, boundary escapes) always count,
+erring toward uncertainty. Relevant gaps are recorded in
+`unavailable_evidence` (and the check in `uncovered_checks`) with PARTIAL
+status; no findings are invented for skipped paths. `git` and
+`architecture` consume no file content, so skips cannot affect them.
+
+Failure information (Stage 4 fix): an analyzer that raises, returns a
+non-result, or returns another analyzer's result becomes FAILED with the
+analyzer's display name and the exception type only
+(e.g. `ValueError in analyzer 'custom-analyzer-0'`). Exception messages
+are untrusted input that may reproduce repository content, including
+secrets, so they are never stored — this narrows "preserved failure
+information" to identity plus exception type, documented here rather than
+changed silently. Display names are the documented registry names
+verbatim; any other requested name (custom registries are not bound by
+the identifier rules) is persisted as the positional alias
+`custom-analyzer-N` in engine-built fields, which are therefore always
+constructible. The
+wrong-analyzer branch stores a fixed mismatched-identity message for the
+same reason.
+
+Trust boundary (adopted): the engine guarantees result-level fields it
+builds itself — display aliases instead of arbitrary registry keys, and
+type-only failure errors. It does not inspect, sanitize, or rewrite
+analyzer-built content: findings (including `finding.analyzer`), and the
+checks/errors/unavailable strings of successful results, pass through
+under the analyzer's own no-secrets contract. Rewriting finding values
+would corrupt stable finding identities, and no reliable secret detector
+exists for arbitrary text — so a custom analyzer that embeds sensitive
+content in its own findings can persist it, and that is the analyzer's
+defect, not the engine's. The built-in analyzers are redaction-tested
+against this contract. The engine therefore does not claim that
+arbitrary registry keys can never reach persisted output in any form;
+it claims exactly the result-level guarantee above.
+
+Whenever a file-consuming analyzer returns PARTIAL over file evidence,
+it names its check in `uncovered_checks`: any unavailable evidence means
+the scan did not complete.
+
+No scoring, correlation, LLM calls, fixes, or repository-code execution
+exist in v1.

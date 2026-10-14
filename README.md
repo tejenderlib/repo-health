@@ -141,16 +141,24 @@ Verified in code and tests; see `docs/rules.md` section 16 for the contracts.
   integrity checks. No legacy schema-v3 compatibility is claimed
   (see `docs/rules.md` section 16.4).
 
+- **Stage 3 — Repository and file discovery** (`src/repo_health/discovery/`,
+  `src/repo_health/config.py`): deterministic glob engine, validated
+  discovery configuration, repository-root resolution, read-only file
+  enumeration with skip accounting, and extension-based language detection.
+- **Stage 4 — Analysis engine and analyzers** (`src/repo_health/core/`,
+  `src/repo_health/analyzers/`): explicit run context, deterministic
+  engine with failure isolation, registry of the eight documented
+  analyzers, and one documented check per analyzer
+  (see `docs/rules.md` section 16.7).
+
 ## Planned (not implemented)
 
 The following are not implemented. The corresponding modules exist only as
 empty placeholders; a directory or empty module does not establish that a
 capability works.
 
-- Analyzers (Git, code, test, dependency, security, documentation,
-  architecture, configuration).
-- Discovery, analysis engine, and comparison/regression logic.
-- Report generation (Markdown, JSON, summaries) and CLI workflows.
+- Analysis engine consumers: CLI workflows, comparison/regression logic,
+  and report generation (Markdown, JSON, summaries).
 
 ## Development Status
 

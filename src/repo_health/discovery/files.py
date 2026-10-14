@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import stat
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -112,6 +113,32 @@ def _is_within(path: str, root: str) -> bool:
         return os.path.commonpath((root, path)) == root
     except ValueError:
         return False
+
+
+def coverage_gaps(
+    skipped: tuple[SkippedEntry, ...],
+    file_matches: Callable[[str], bool],
+    check: str,
+) -> tuple[str, ...]:
+    """Describe skipped paths that could hide evidence for one check.
+
+    Excluded paths are never relevant: the user explicitly removed them
+    from coverage (see docs/configuration.md section 5). Oversized and
+    binary skips are files with known paths, so only matching paths count.
+    All other skips (unreadable, symlinks, boundary escapes) may hide
+    whole directories, so they always count — erring toward uncertainty
+    per docs/rules.md section 2.3. Descriptions name paths and reasons
+    only, never file content.
+    """
+    gaps: list[str] = []
+    for entry in skipped:
+        if entry.reason is SkipReason.EXCLUDED:
+            continue
+        if entry.reason in (SkipReason.TOO_LARGE, SkipReason.BINARY):
+            if not file_matches(entry.path):
+                continue
+        gaps.append(f"{entry.path}: {entry.reason.value}; {check} unevaluated")
+    return tuple(sorted(gaps))
 
 
 class _Walker:

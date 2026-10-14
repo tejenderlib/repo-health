@@ -129,11 +129,18 @@ their results, and constructs the analysis output.
 
 It must not implement individual security, Git, or code-detection rules.
 
+Implemented in Stage 4: `analyze()` runs discovery once, invokes the
+selected registered analyzers in order with independent failure
+isolation, and returns their results. See `docs/rules.md` section 16.7.
+
 #### `context.py`
 
 Contains the explicit context needed during an analysis run.
 
 It must not become an unrestricted container for mutable global state.
+
+Implemented in Stage 4 as the frozen `AnalysisContext` (resolved target,
+discovery result, configuration).
 
 #### `exceptions.py`
 
@@ -183,6 +190,10 @@ Analyzers must:
 - Avoid silently treating analysis failures as clean results.
 
 Each analyzer must have focused tests.
+
+Implemented in Stage 4 with one documented check per analyzer; the
+registry in `analyzers/__init__.py` holds the eight documented analyzers
+in run order. See `docs/rules.md` section 16.7 for the v1 check set.
 
 ### 4.6 Intelligence — `intelligence/`
 
