@@ -10,11 +10,55 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 from repo_health.core.exceptions import DatabaseError
 from repo_health.storage import schema as schema_module
 from repo_health.storage.paths import resolve_db_path
+
+
+@dataclass(frozen=True)
+class DatabaseStats:
+    """Read-only point-in-time counts for one memory database."""
+
+    path: str
+    schema_version: int
+    repositories: int
+    runs: int
+    analyzer_results: int
+    findings: int
+    observations: int
+
+
+def _count(conn: sqlite3.Connection, table: str) -> int:
+    row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+    if row is None:  # pragma: no cover - defensive; COUNT always yields a row
+        raise DatabaseError(f"cannot count {table}")
+    return int(row[0])
+
+
+def get_stats(explicit: str | Path | None = None) -> DatabaseStats:
+    """Return database statistics without modifying anything."""
+    path = resolve_db_path(explicit)
+    with connect_readonly(path) as conn:
+        try:
+            version_row = conn.execute("PRAGMA user_version").fetchone()
+            version = int(version_row[0]) if version_row is not None else 0
+            stats = DatabaseStats(
+                path=str(path),
+                schema_version=version,
+                repositories=_count(conn, "repositories"),
+                runs=_count(conn, "analysis_runs"),
+                analyzer_results=_count(conn, "analyzer_results"),
+                findings=_count(conn, "findings"),
+                observations=_count(conn, "observations"),
+            )
+        except sqlite3.Error as exc:
+            raise DatabaseError(
+                f"cannot read database statistics at {path}: {exc}"
+            ) from exc
+    return stats
 
 
 @contextmanager

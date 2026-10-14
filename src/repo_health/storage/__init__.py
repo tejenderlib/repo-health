@@ -8,7 +8,13 @@ for location resolution, ``storage.db`` for connections, and
 
 from __future__ import annotations
 
-from repo_health.storage.db import connect, connect_readonly, init_db
+from repo_health.storage.db import (
+    DatabaseStats,
+    connect,
+    connect_readonly,
+    get_stats,
+    init_db,
+)
 from repo_health.storage.paths import DEFAULT_DB_PATH, ENV_VAR, resolve_db_path
 from repo_health.storage.records import (
     create_run,
@@ -28,6 +34,7 @@ __all__ = [
     "DEFAULT_DB_PATH",
     "ENV_VAR",
     "MEMORY_SCHEMA_VERSION",
+    "DatabaseStats",
     "connect",
     "connect_readonly",
     "create_run",
@@ -36,6 +43,7 @@ __all__ = [
     "get_repository",
     "get_results_for_run",
     "get_run",
+    "get_stats",
     "init_db",
     "list_runs",
     "migrate",

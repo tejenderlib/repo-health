@@ -107,6 +107,11 @@ Responsibilities:
 
 The CLI must not contain analyzer-specific detection logic.
 
+Implemented in Stage 5: `main(argv) -> int` with `analyze` and `db`
+subcommands over stdlib `argparse`. Exit codes: 0 success (partial
+results included), 1 operational or analysis failure, 2 usage or
+configuration error. Query commands arrive with later stages.
+
 ### 4.2 Configuration — `config.py`
 
 Responsibilities:

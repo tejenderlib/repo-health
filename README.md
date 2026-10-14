@@ -123,6 +123,21 @@ Read the project specifications before implementing new functionality.
 
 Development tools are defined as optional dependencies in `pyproject.toml`.
 
+## Usage
+
+```bash
+repo-health analyze /path/to/repo
+repo-health analyze /path/to/repo --analyzers git security --no-persist
+repo-health db init
+repo-health db info
+```
+
+`analyze` runs the engine and persists the observation to the memory
+database (`REPO_HEALTH_DB` or `~/.local/share/repo-health/memory.db`
+unless `--db-path` is given). Exit codes: `0` success (partial results
+included), `1` analysis or operational failure, `2` usage or
+configuration error. Every command supports `--help`.
+
 ## Implemented to date
 
 Verified in code and tests; see `docs/rules.md` section 16 for the contracts.
@@ -150,6 +165,9 @@ Verified in code and tests; see `docs/rules.md` section 16 for the contracts.
   engine with failure isolation, registry of the eight documented
   analyzers, and one documented check per analyzer
   (see `docs/rules.md` section 16.7).
+- **Stage 5 — Command-line interface** (`src/repo_health/cli.py`):
+  `analyze` and `db` commands over stdlib `argparse`, with documented
+  exit codes (0 success, 1 failure, 2 usage error).
 
 ## Planned (not implemented)
 
@@ -157,8 +175,8 @@ The following are not implemented. The corresponding modules exist only as
 empty placeholders; a directory or empty module does not establish that a
 capability works.
 
-- Analysis engine consumers: CLI workflows, comparison/regression logic,
-  and report generation (Markdown, JSON, summaries).
+- Analysis engine consumers: finding queries, comparison/regression
+  logic, and report generation (Markdown, JSON, summaries).
 
 ## Development Status
 
