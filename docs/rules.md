@@ -353,3 +353,44 @@ It does not establish that any analyzer, evidence state, lifecycle transition,
 or schema compatibility mechanism has already been implemented.
 
 Each capability must be verified through code inspection and automated tests.
+
+## 16. Stage 1 Implementation Contract (Implemented)
+
+This section records the contracts implemented in Stage 1 (core models).
+It does not change the normative rules above; it fixes their Python
+representation.
+
+### 16.1 Evidence-state representation
+
+Evidence states are represented by `models.evidence.EvidenceState`, a
+string enum with values `known`, `unknown`, and `unavailable`.
+`models.evidence.is_established()` returns True only for KNOWN.
+
+### 16.2 Stable finding identity algorithm v1
+
+Finding ids use algorithm `rh-finding-id-v1` (see
+`models.finding.compute_finding_id`): the SHA-256 hex digest (first 16
+characters, prefixed `rh1-`) of
+`rh-finding-id-v1|<analyzer>|<rule>|<canonical path>|<locator>|<fingerprint>`,
+where the path is canonicalized to a repo-relative POSIX form. The id
+depends only on stable rule evidence, never on timestamps, random values,
+discovery order, or absolute checkout paths. A supplied id that does not
+match the components is rejected. Changing the algorithm requires a new
+algorithm name so old and new ids cannot be confused.
+
+### 16.3 Analyzer execution-result model
+
+Analyzer outcomes are represented by `models.analyzer_result.AnalyzerResult`
+with status `AnalyzerStatus` (`success`, `partial`, `failed`, `not_run`).
+A FAILED result must preserve error information; a PARTIAL result must
+identify uncovered checks or unavailable evidence; a NOT_RUN result reports
+no findings. Findings are stored sorted by id for deterministic output.
+
+### 16.4 Schema v3 limitation
+
+The previously established schema v3 definition and its fixtures are
+currently unavailable. Therefore **no schema-v3 compatibility is claimed**
+by this implementation. Persisted formats will be defined as a new memory
+schema in Stage 2, and this limitation must be revisited when the v3
+definition becomes available. No finding, report, or database format may
+be described as schema-v3 compatible until that happens.

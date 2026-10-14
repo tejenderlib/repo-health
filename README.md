@@ -246,7 +246,11 @@ The next phases are:
 
 1. Review the architecture and behavioral specifications.
 2. Verify compatibility requirements against existing project artifacts.
+   (Note: the schema v3 definition is currently unavailable, so no
+   schema-v3 compatibility is claimed; see `docs/rules.md` section 16.4.)
 3. Define data models and component interfaces.
+   (Stage 1 complete: evidence states, finding identity v1, analyzer
+   execution-result model, and repository identity in `src/repo_health/models/`.)
 4. Implement the core and analyzers incrementally.
 5. Add tests and verify behavior.
 6. Implement reporting and user-facing workflows.

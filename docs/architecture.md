@@ -222,8 +222,17 @@ an approved design and validation strategy.
 Shared data contracts are defined here.
 
 - `finding.py`: finding identity, severity, description, location, and evidence.
-- `repository.py`: repository identity and metadata.
-- `report.py`: analysis results and report metadata.
+  Implements the v1 identity algorithm and severity levels from `docs/rules.md`
+  section 16.
+- `evidence.py`: the `EvidenceState` (KNOWN/UNKNOWN/UNAVAILABLE) representation
+  from `docs/rules.md` section 16.
+- `analyzer_result.py`: the analyzer execution-result model (`AnalyzerStatus`
+  plus findings, checks, uncovered checks, unavailable evidence, and errors)
+  from `docs/rules.md` section 16.
+- `repository.py`: repository identity and metadata (Stage 1: representation
+  and validation only; persistence and cross-checkout matching are Stage 2).
+- `report.py`: analysis results and report metadata (reserved for Stage 8;
+  currently unimplemented).
 
 Models must validate their invariants and avoid depending on the CLI or
 presentation layer.
