@@ -1,9 +1,12 @@
-"""Command-line interface (Stage 5).
+"""Command-line interface (Stages 5 and 6).
 
 Subcommands: ``analyze`` runs the analysis engine and persists the
 observation; ``db init`` creates the memory database; ``db info`` reports
-read-only database statistics. Query commands (findings, history,
-regressions) and integrations arrive with later stages.
+read-only database statistics; ``history`` shows runs and per-finding
+lifecycle against a baseline; ``regressions`` reports new and reappeared
+findings. Query commands exit 0 whenever the query succeeds, even when
+regressions are found: their output is a report, not a verdict. Findings
+queries and integrations arrive with later stages.
 
 Exit codes:
 
@@ -22,6 +25,7 @@ repository is never modified.
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 
 from repo_health import __version__
@@ -29,15 +33,21 @@ from repo_health.analyzers import analyzer_names
 from repo_health.core.engine import analyze as run_analysis
 from repo_health.core.exceptions import RepoHealthError, ValidationError
 from repo_health.discovery.repository import resolve_target
+from repo_health.intelligence.regression import compare_runs, compare_to_previous
 from repo_health.models import RunStatus, Severity
 from repo_health.models.analyzer_result import AnalyzerResult, AnalyzerStatus
+from repo_health.models.lifecycle import Lifecycle
 from repo_health.storage import (
     connect,
+    connect_readonly,
     create_run,
+    get_repository_id,
     get_stats,
     init_db,
+    list_runs,
     record_analyzer_result,
     record_observation,
+    resolve_db_path,
     upsert_repository,
 )
 
@@ -113,6 +123,59 @@ def build_parser() -> argparse.ArgumentParser:
     )
     db_info_parser.add_argument("--db-path", default=None, help="database path")
     db_info_parser.set_defaults(func=_cmd_db_info)
+
+    history_parser = subparsers.add_parser(
+        "history",
+        help="show analysis history for a repository",
+        description="List stored runs, or classify one run's findings "
+        "against a baseline run. Read-only.",
+    )
+    history_parser.add_argument(
+        "--repo",
+        default=".",
+        help="repository path to inspect (default: .)",
+    )
+    history_parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="run id to inspect (default: list runs)",
+    )
+    history_parser.add_argument(
+        "--baseline",
+        type=int,
+        default=None,
+        help="baseline run id (default: previous run)",
+    )
+    history_parser.add_argument("--db-path", default=None, help="database path")
+    history_parser.set_defaults(func=_cmd_history)
+
+    regressions_parser = subparsers.add_parser(
+        "regressions",
+        help="report new and reappeared findings",
+        description="Compare a run against a baseline run and report findings "
+        "classified NEW or REAPPEARED, with a full status summary. "
+        "Read-only; exits 0 even when regressions are found.",
+    )
+    regressions_parser.add_argument(
+        "--repo",
+        default=".",
+        help="repository path to inspect (default: .)",
+    )
+    regressions_parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="current run id (default: latest run)",
+    )
+    regressions_parser.add_argument(
+        "--baseline",
+        type=int,
+        default=None,
+        help="baseline run id (default: previous run)",
+    )
+    regressions_parser.add_argument("--db-path", default=None, help="database path")
+    regressions_parser.set_defaults(func=_cmd_regressions)
     return parser
 
 
@@ -191,6 +254,121 @@ def _cmd_db_info(args: argparse.Namespace) -> int:
     print(f"findings: {stats.findings}")
     print(f"observations: {stats.observations}")
     return EXIT_OK
+
+
+def _resolve_history_repo(conn: sqlite3.Connection, repo: str) -> int:
+    resolved = resolve_target(repo)
+    repo_id = get_repository_id(conn, resolved.root.key())
+    if repo_id is None:
+        raise ValidationError(f"no history for {repo!r}: run analyze first")
+    return repo_id
+
+
+def _select_runs(
+    run_ids: list[int], run: int | None, baseline: int | None
+) -> tuple[int, int | None]:
+    current = run if run is not None else run_ids[-1]
+    if current not in run_ids:
+        raise ValidationError(f"unknown run {current}")
+    if baseline is not None:
+        if baseline not in run_ids:
+            raise ValidationError(f"unknown run {baseline}")
+        if baseline >= current:
+            raise ValidationError(
+                f"baseline run {baseline} must precede run {current}"
+            )
+    return current, baseline
+
+
+def _run_rows(conn: sqlite3.Connection, repo_id: int) -> list[tuple[int, str, str]]:
+    return [
+        (run.id, run.status.value, run.created_at)
+        for run in list_runs(conn, repo_id)
+        if run.id is not None
+    ]
+
+
+def _cmd_history(args: argparse.Namespace) -> int:
+    with connect_readonly(resolve_db_path(args.db_path)) as conn:
+        repo_id = _resolve_history_repo(conn, str(args.repo))
+        rows = _run_rows(conn, repo_id)
+        lines = [f"repo: {args.repo}"]
+        if not rows:
+            lines.append("no runs")
+            print("\n".join(lines))
+            return EXIT_OK
+        if args.run is None and args.baseline is None:
+            for run_id, status, created in rows:
+                lines.append(f"run {run_id} ({status}) {created}")
+            print("\n".join(lines))
+            return EXIT_OK
+        current, baseline = _select_runs(
+            [run_id for run_id, _, _ in rows], args.run, args.baseline
+        )
+        if baseline is None:
+            lifecycles = compare_to_previous(conn, repo_id, current)
+            lines.append(f"run {current} vs previous run")
+        else:
+            lifecycles = compare_runs(conn, repo_id, current, baseline)
+            lines.append(f"run {current} vs baseline run {baseline}")
+        for item in lifecycles:
+            lines.append(
+                f"{item.finding_id} {item.analyzer} "
+                f"{item.lifecycle.value}: {item.reason}"
+            )
+        print("\n".join(lines))
+        return EXIT_OK
+
+
+def _cmd_regressions(args: argparse.Namespace) -> int:
+    order = (
+        Lifecycle.NEW,
+        Lifecycle.RECURRING,
+        Lifecycle.RESOLVED,
+        Lifecycle.REAPPEARED,
+        Lifecycle.INDETERMINATE,
+    )
+    with connect_readonly(resolve_db_path(args.db_path)) as conn:
+        repo_id = _resolve_history_repo(conn, str(args.repo))
+        rows = _run_rows(conn, repo_id)
+        lines = [f"repo: {args.repo}"]
+        if not rows:
+            lines.append("no runs")
+            print("\n".join(lines))
+            return EXIT_OK
+        current, baseline = _select_runs(
+            [run_id for run_id, _, _ in rows], args.run, args.baseline
+        )
+        if baseline is None:
+            lifecycles = compare_to_previous(conn, repo_id, current)
+            label = "previous run"
+        else:
+            lifecycles = compare_runs(conn, repo_id, current, baseline)
+            label = f"baseline run {baseline}"
+        counts = {lifecycle: 0 for lifecycle in order}
+        for item in lifecycles:
+            counts[item.lifecycle] += 1
+        lines.append(
+            f"run {current} vs {label}: {counts[Lifecycle.NEW]} new, "
+            f"{counts[Lifecycle.REAPPEARED]} reappeared "
+            f"({counts[Lifecycle.RECURRING]} recurring, "
+            f"{counts[Lifecycle.RESOLVED]} resolved, "
+            f"{counts[Lifecycle.INDETERMINATE]} indeterminate)"
+        )
+        shown = [
+            item
+            for item in lifecycles
+            if item.lifecycle in (Lifecycle.NEW, Lifecycle.REAPPEARED)
+        ]
+        if not shown:
+            lines.append("no regressions")
+        for item in shown:
+            lines.append(
+                f"{item.finding_id} {item.analyzer} "
+                f"{item.lifecycle.value}: {item.reason}"
+            )
+        print("\n".join(lines))
+        return EXIT_OK
 
 
 def main(argv: list[str] | None = None) -> int:

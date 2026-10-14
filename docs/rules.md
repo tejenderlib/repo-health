@@ -524,3 +524,49 @@ the scan did not complete.
 
 No scoring, correlation, LLM calls, fixes, or repository-code execution
 exist in v1.
+
+### 16.8 Comparison models and lifecycle table (Phase 6, step 1)
+
+Lifecycle states are represented by `models.lifecycle.Lifecycle`
+(`new`, `recurring`, `resolved`, `reappeared`, `indeterminate`), and each
+classification is a `models.lifecycle.FindingLifecycle` carrying the
+compared run ids and a deterministic reason — history stays traceable to
+actual observations.
+
+`intelligence/regression.py` applies the section 8 decision table as a
+pure function over explicit booleans (`FindingComparison`); storage
+wiring (deriving completeness from analyzer status plus discovery
+coverage, tracking resolutions across runs) is a later step. Key rules:
+
+- Presence is positive evidence: RECURRING and RESOLVED do not require
+  the other side's coverage to be complete.
+- NEW requires a complete baseline; RESOLVED requires a complete
+  current observation; REAPPEARED requires an evidenced intervening
+  resolution with a complete baseline.
+- Incompatible rules, missing evidence on the deciding side, and
+  contradictory history inputs yield INDETERMINATE (or rejection).
+- Missing baseline evidence never produces NEW; missing current evidence
+  never produces RESOLVED; analyzer failure never produces RESOLVED.
+
+### 16.9 Historical comparison integration (Phase 6, step 2)
+
+`compare_runs` compares two stored runs of one repository; both runs must
+belong to it. `compare_to_previous` uses the latest earlier run, or treats
+a first run as having no baseline (every finding INDETERMINATE). Decided:
+
+1. Completeness is per (run, analyzer): a SUCCESS row with empty
+   unavailable-evidence and uncovered-checks lists. Missing, failed,
+   partial, or not-run rows are incomplete.
+2. Coverage compatibility is per analyzer name on both sides; no
+   run-level analyzer-set matching is needed because per-analyzer
+   incompleteness already yields INDETERMINATE.
+3. `previously_resolved` holds when the baseline run is complete and
+   absent for the finding with an earlier same-repository observation.
+   Runs between baseline and current are out of pairwise scope.
+4. Rule compatibility compares rule ids when both sides observed, else
+   holds. No schema fields were added: rule ids already live in finding
+   rows, and versions would buy nothing in v1.
+
+Intermediate runs between baseline and current are ignored by pairwise
+comparison; multi-run resolution chains beyond occurrence-plus-baseline
+remain a later step.

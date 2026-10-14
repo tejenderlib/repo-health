@@ -72,6 +72,23 @@ def upsert_repository(
     return int(row[0])
 
 
+def get_repository_id(conn: sqlite3.Connection, key: str) -> int | None:
+    """Return the row id stored under ``key``, or None if absent.
+
+    Read-only alternative to ``upsert_repository`` for query paths that
+    must not modify the database.
+    """
+    try:
+        row = conn.execute(
+            "SELECT id FROM repositories WHERE key = ?", (key,)
+        ).fetchone()
+    except sqlite3.Error as exc:
+        raise DatabaseError(f"cannot read repository {key}: {exc}") from exc
+    if row is None:
+        return None
+    return int(row[0])
+
+
 def get_repository(conn: sqlite3.Connection, key: str) -> Repository | None:
     """Return the repository stored under ``key``, or None if absent."""
     try:

@@ -107,10 +107,11 @@ Responsibilities:
 
 The CLI must not contain analyzer-specific detection logic.
 
-Implemented in Stage 5: `main(argv) -> int` with `analyze` and `db`
-subcommands over stdlib `argparse`. Exit codes: 0 success (partial
-results included), 1 operational or analysis failure, 2 usage or
-configuration error. Query commands arrive with later stages.
+Implemented in Stages 5 and 6: `main(argv) -> int` with `analyze`, `db`,
+`history`, and `regressions` subcommands over stdlib `argparse`. Exit
+codes: 0 success (partial results and found regressions included),
+1 operational or analysis failure, 2 usage or configuration error.
+Findings queries arrive with a later stage.
 
 ### 4.2 Configuration — `config.py`
 
@@ -225,6 +226,10 @@ Compares observations to identify new, recurring, resolved, and reappearing
 findings when the available evidence supports those classifications.
 
 Missing or incomplete evidence must not automatically imply resolution.
+
+Implemented in Phase 6: `regression.py` classifies persisted runs
+(`compare_runs`, `compare_to_previous`) via the section 8 decision
+table; see `docs/rules.md` sections 16.8 and 16.9.
 
 #### `scoring.py`
 

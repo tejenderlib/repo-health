@@ -199,3 +199,125 @@ def test_db_path_flag_overrides_env(
     out = capsys.readouterr().out
     assert str(flag_db) in out
     assert main(["db", "info"]) == 1
+
+
+def use_db(tmp_path: Path, monkeypatch: MonkeyPatch) -> Path:
+    db_path = tmp_path / "memory.db"
+    monkeypatch.setenv("REPO_HEALTH_DB", str(db_path))
+    return db_path
+
+
+def test_history_help_and_unknown_repo(
+    tmp_path: Path, monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    assert main(["history", "--help"]) == 0
+    assert main(["regressions", "--help"]) == 0
+    use_db(tmp_path, monkeypatch)
+    root = build_repo(tmp_path / "repo")
+    assert main(["db", "init"]) == 0
+    capsys.readouterr()
+    assert main(["history", "--repo", str(root)]) == 2
+    err = capsys.readouterr().err
+    assert "no history" in err
+
+
+def test_history_lists_runs_and_empty_history(
+    tmp_path: Path, monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    use_db(tmp_path, monkeypatch)
+    root = build_repo(tmp_path / "repo")
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    assert main(["history", "--repo", str(root)]) == 0
+    out = capsys.readouterr().out
+    assert "run 1 (completed)" in out
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    assert main(["history", "--repo", str(root)]) == 0
+    out = capsys.readouterr().out
+    assert "run 1 (completed)" in out
+    assert "run 2 (completed)" in out
+
+
+def test_history_run_classifies_against_previous(
+    tmp_path: Path, monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    use_db(tmp_path, monkeypatch)
+    root = build_repo(tmp_path / "repo")
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    (root / "key.txt").write_text("key = AKIAIOSFODNN7EXAMPLE\n")
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    assert main(["history", "--repo", str(root), "--run", "2"]) == 0
+    out = capsys.readouterr().out
+    assert "run 2 vs previous run" in out
+    assert "new:" in out
+    assert "recurring" in out
+
+
+def test_history_explicit_baseline_and_first_run_indeterminate(
+    tmp_path: Path, monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    use_db(tmp_path, monkeypatch)
+    root = build_repo(tmp_path / "repo")
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    assert main(["history", "--repo", str(root), "--run", "1"]) == 0
+    out = capsys.readouterr().out
+    assert "indeterminate" in out
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    assert main(["history", "--repo", str(root), "--run", "2", "--baseline", "1"]) == 0
+    out = capsys.readouterr().out
+    assert "run 2 vs baseline run 1" in out
+
+
+def test_history_invalid_runs_rejected(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    use_db(tmp_path, monkeypatch)
+    root = build_repo(tmp_path / "repo")
+    assert main(["analyze", str(root)]) == 0
+    assert main(["history", "--repo", str(root), "--run", "99"]) == 2
+    assert main(["history", "--repo", str(root), "--run", "1", "--baseline", "1"]) == 2
+    assert main(["history", "--repo", str(root), "--run", "1", "--baseline", "99"]) == 2
+    assert main(["history", "--repo", str(root), "--run", "abc"]) == 2
+
+
+def test_regressions_reports_new_and_summary(
+    tmp_path: Path, monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    use_db(tmp_path, monkeypatch)
+    root = build_repo(tmp_path / "repo")
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    (root / "key.txt").write_text("key = AKIAIOSFODNN7EXAMPLE\n")
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    assert main(["regressions", "--repo", str(root)]) == 0
+    out = capsys.readouterr().out
+    assert "1 new, 0 reappeared" in out
+    assert "new:" in out
+    assert "recurring" in out
+
+
+def test_regressions_empty_and_read_only(
+    tmp_path: Path, monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    db_path = use_db(tmp_path, monkeypatch)
+    root = build_repo(tmp_path / "repo")
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    assert main(["analyze", str(root)]) == 0
+    capsys.readouterr()
+    assert main(["regressions", "--repo", str(root), "--run", "2"]) == 0
+    out = capsys.readouterr().out
+    assert "0 new, 0 reappeared" in out
+    assert "no regressions" in out
+    before = (db_path.stat().st_mtime_ns, db_path.read_bytes())
+    assert main(["history", "--repo", str(root), "--run", "2"]) == 0
+    capsys.readouterr()
+    assert main(["regressions", "--repo", str(root), "--run", "2"]) == 0
+    capsys.readouterr()
+    assert (db_path.stat().st_mtime_ns, db_path.read_bytes()) == before

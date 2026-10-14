@@ -1,4 +1,4 @@
-"""Shared data contracts (Stage 1: evidence, finding, result, repository)."""
+"""Shared data contracts (Stages 1, 2, and 6: models and lifecycle)."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from repo_health.models.finding import (
     compute_finding_id,
     validate_identifier,
 )
+from repo_health.models.lifecycle import FindingLifecycle, Lifecycle
 from repo_health.models.observation import Observation
 from repo_health.models.repository import Repository
 from repo_health.models.run import AnalysisRun, RunStatus
@@ -21,6 +22,8 @@ __all__ = [
     "AnalyzerStatus",
     "EvidenceState",
     "Finding",
+    "FindingLifecycle",
+    "Lifecycle",
     "Observation",
     "Repository",
     "RunStatus",

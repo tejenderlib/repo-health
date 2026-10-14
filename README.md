@@ -130,6 +130,9 @@ repo-health analyze /path/to/repo
 repo-health analyze /path/to/repo --analyzers git security --no-persist
 repo-health db init
 repo-health db info
+repo-health history --repo /path/to/repo
+repo-health history --repo /path/to/repo --run 2 --baseline 1
+repo-health regressions --repo /path/to/repo
 ```
 
 `analyze` runs the engine and persists the observation to the memory
