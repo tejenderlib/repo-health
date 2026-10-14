@@ -268,15 +268,18 @@ contract.
 
 #### `markdown.py`
 
-Produces human-readable Markdown reports.
+Produces human-readable Markdown reports (see `docs/output-format.md`
+section 2 for the fixed layout).
 
 #### `json_report.py`
 
-Produces machine-readable JSON output using a stable, documented structure.
+Produces machine-readable JSON output using a stable, documented structure
+(`repo-health-report/v1`; see `docs/output-format.md` section 1).
 
 #### `summary.py`
 
-Produces concise summaries derived from actual analysis results.
+Produces concise summaries derived from actual analysis results (see
+`docs/output-format.md` section 3).
 
 Presentation code must not invent findings, alter severity, or reinterpret
 evidence.

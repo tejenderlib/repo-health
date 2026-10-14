@@ -134,6 +134,9 @@ repo-health history --repo /path/to/repo
 repo-health history --repo /path/to/repo --run 2 --baseline 1
 repo-health regressions --repo /path/to/repo
 repo-health context --repo /path/to/repo --max-findings 10
+repo-health report --repo /path/to/repo --format markdown
+repo-health report --repo /path/to/repo --run 2 --baseline 1 --format json
+repo-health report --repo /path/to/repo --format summary --output report.md
 ```
 
 `analyze` runs the engine and persists the observation to the memory
@@ -170,8 +173,19 @@ Verified in code and tests; see `docs/rules.md` section 16 for the contracts.
   analyzers, and one documented check per analyzer
   (see `docs/rules.md` section 16.7).
 - **Stage 5 — Command-line interface** (`src/repo_health/cli.py`):
-  `analyze` and `db` commands over stdlib `argparse`, with documented
+  `analyze`, `db`, `history`, `regressions`, `context`, and `report`
+  commands over stdlib `argparse`, with documented
   exit codes (0 success, 1 failure, 2 usage error).
+- **Stage 6 — Historical comparison** (`src/repo_health/intelligence/`):
+  lifecycle classification (new, recurring, resolved, reappeared,
+  indeterminate) over persisted runs
+  (see `docs/rules.md` sections 16.8 and 16.9).
+- **Stage 7 — Agent context export** (`src/repo_health/context/`):
+  bounded, vendor-neutral context packages with derived lifecycle
+  and honest truncation counts.
+- **Stage 8 — Reports** (`src/repo_health/reports/`): shared report
+  model with JSON (`repo-health-report/v1`), Markdown, and summary
+  rendering (see `docs/output-format.md`).
 
 ## Planned (not implemented)
 
@@ -179,8 +193,8 @@ The following are not implemented. The corresponding modules exist only as
 empty placeholders; a directory or empty module does not establish that a
 capability works.
 
-- Analysis engine consumers: finding queries, comparison/regression
-  logic, and report generation (Markdown, JSON, summaries).
+- Finding queries, scoring, correlation, hotspots, impact analysis,
+  and vendor-specific integrations.
 
 ## Development Status
 
